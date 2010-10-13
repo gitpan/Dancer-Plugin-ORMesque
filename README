@@ -1,0 +1,24 @@
+# Dancer::Plugin::ORMesque - Simple Object Relational Mapping for Dancer
+
+use Dancer qw/:syntax/;
+use Dancer::Plugin::ORMesque;
+
+post '/login' => sub {
+
+    my $account = {
+        login    => params->{login},
+        password => params->{password}
+    };
+    
+    # access the user table
+    my $user = dbi->user;
+    $user->read($account);
+    
+    if ($user->id) {
+        $user->last_accessed(...);
+        $user->update($user->current, $user->id);
+        
+        redirect '/control_panel';
+    }
+
+};
