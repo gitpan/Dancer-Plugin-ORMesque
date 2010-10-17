@@ -21,11 +21,12 @@ my %WriteMakefileArgs = (
   'NAME' => 'Dancer::Plugin::ORMesque',
   'PREREQ_PM' => {
     'DBIx::Simple' => '0',
+    'Dancer' => '0',
     'Dancer::Plugin::Database' => '0',
     'SQL::Abstract' => '0',
     'SQL::Interp' => '0'
   },
-  'VERSION' => '0.0100',
+  'VERSION' => '0.0101',
   'test' => {
     'TESTS' => ''
   }
@@ -34,10 +35,10 @@ my %WriteMakefileArgs = (
 
 unless ( eval { ExtUtils::MakeMaker->VERSION(6.56) } ) {
   my $br = delete $WriteMakefileArgs{BUILD_REQUIRES};
-  my $pp = $WriteMakefileArgs{PREREQ_PM}; 
+  my $pp = $WriteMakefileArgs{PREREQ_PM};
   for my $mod ( keys %$br ) {
     if ( exists $pp->{$mod} ) {
-      $pp->{$mod} = $br->{$mod} if $br->{$mod} > $pp->{$mod}; 
+      $pp->{$mod} = $br->{$mod} if $br->{$mod} > $pp->{$mod};
     }
     else {
       $pp->{$mod} = $br->{$mod};

@@ -2,7 +2,7 @@
 
 package Dancer::Plugin::ORMesque;
 BEGIN {
-  $Dancer::Plugin::ORMesque::VERSION = '0.0100';
+  $Dancer::Plugin::ORMesque::VERSION = '0.0101';
 }
 
 use strict;
@@ -20,6 +20,7 @@ my  $cfg =
     config->{plugins}->{Database};
 
 # use Data::Dumper qw/Dumper/;
+
 
 
 register dbi => sub {
@@ -340,7 +341,7 @@ Dancer::Plugin::ORMesque - Simple Object Relational Mapping for Dancer
 
 =head1 VERSION
 
-version 0.0100
+version 0.0101
 
 =head1 SYNOPSIS
 
@@ -423,13 +424,6 @@ a DSN directly in your configuration file you need to also specify a driver dire
     to create database objects and accessors.
     
     my $db = dbi;
-
-=head1 EXPERIMENTAL
-
-This plugin is highly **experimental** and subject to radical design changes based on
-random flights-of-fancy. Currently the only databased supported are MySQL and SQLite
-but more support will be added once I have a stable model to with with. Please
-give feedback.
 
 =head2 next
 
@@ -580,9 +574,16 @@ give feedback.
     
     dbi->table->delete_all;
 
+=head1 EXPERIMENTAL
+
+This plugin is highly **experimental** and subject to radical design changes based on
+random flights-of-fancy. Currently the only databased supported are MySQL and SQLite
+but more support will be added once I have a stable model to with with. Please
+give feedback.
+
 =head1 AUTHOR
 
-  Al Newkirk <awncorp@cpan.org>
+Al Newkirk <awncorp@cpan.org>
 
 =head1 COPYRIGHT AND LICENSE
 
