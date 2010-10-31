@@ -1,5 +1,5 @@
 ---
-abstract: 'Simple Object Relational Mapping for Dancer'
+abstract: 'Light ORM for Dancer'
 author:
   - 'Al Newkirk <awncorp@cpan.org>'
 build_requires: {}
@@ -18,4 +18,4 @@ requires:
   Dancer::Plugin::Database: 0
   SQL::Abstract: 0
   SQL::Interp: 0
-version: 0.0101
+version: 1.103040

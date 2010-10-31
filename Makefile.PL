@@ -9,7 +9,7 @@ use ExtUtils::MakeMaker 6.31;
 
 
 my %WriteMakefileArgs = (
-  'ABSTRACT' => 'Simple Object Relational Mapping for Dancer',
+  'ABSTRACT' => 'Light ORM for Dancer',
   'AUTHOR' => 'Al Newkirk <awncorp@cpan.org>',
   'BUILD_REQUIRES' => {},
   'CONFIGURE_REQUIRES' => {
@@ -26,9 +26,9 @@ my %WriteMakefileArgs = (
     'SQL::Abstract' => '0',
     'SQL::Interp' => '0'
   },
-  'VERSION' => '0.0101',
+  'VERSION' => '1.103040',
   'test' => {
-    'TESTS' => ''
+    'TESTS' => 't/*.t'
   }
 );
 

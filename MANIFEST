@@ -5,4 +5,8 @@ Makefile.PL
 README
 dist.ini
 lib/Dancer/Plugin/ORMesque.pm
-orm.kpf
+t/000_database.db
+t/000_database.db.bak
+t/001_load.t
+t/002_rundown.t
+t/lib/Dancer/Plugin/Database.pm

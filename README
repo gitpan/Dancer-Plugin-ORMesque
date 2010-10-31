@@ -5,20 +5,19 @@ use Dancer::Plugin::ORMesque;
 
 post '/login' => sub {
 
-    my $account = {
-        login    => params->{login},
-        password => params->{password}
-    };
-    
     # access the user table
     my $user = dbi->user;
-    $user->read($account);
+    
+    # set column object from form params
+    $user->login(params->{login});
+    $user->password(params->{password});
+    
+    # insert and return new record
+    $user->create($user->current)->return;
     
     if ($user->id) {
-        $user->last_accessed(...);
+        $user->name( $user->name . " 2.0" );
         $user->update($user->current, $user->id);
-        
-        redirect '/control_panel';
     }
 
 };

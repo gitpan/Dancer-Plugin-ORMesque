@@ -1,8 +1,8 @@
-#ABSTRACT: Simple Object Relational Mapping for Dancer
+#ABSTRACT: Light ORM for Dancer
 
 package Dancer::Plugin::ORMesque;
 BEGIN {
-  $Dancer::Plugin::ORMesque::VERSION = '0.0101';
+  $Dancer::Plugin::ORMesque::VERSION = '1.103040';
 }
 
 use strict;
@@ -16,76 +16,83 @@ use Dancer::Plugin::Database;
 use SQL::Abstract;
 use SQL::Interp;
 
-my  $cfg =
-    config->{plugins}->{Database};
-
-# use Data::Dumper qw/Dumper/;
-
 
 
 register dbi => sub {
-    my    $dbh    = database;
-    my    $self   = {};
+    my $cfg  = config->{plugins}->{Database};
+    my $dbh  = database;
+    my $self = {};
     bless $self, 'Dancer::Plugin::ORMesque';
-    
+
     warn "Error connecting to the database..." unless $dbh;
-    warn "No database driver specified in the configuration file" unless $cfg->{driver};
-    
+    warn "No database driver specified in the configuration file"
+      unless $cfg->{driver};
+
     # MYSQL CONFIGURATION
     # load schema from connection for mysql
     if (lc($cfg->{driver}) eq 'mysql') {
+
         # load tables
         push @{$self->{schema}->{tables}}, $_->[0]
-            foreach @{ $dbh->selectall_arrayref("SHOW TABLES") };
+          foreach @{$dbh->selectall_arrayref("SHOW TABLES")};
+
         # load table columns
         foreach my $table (@{$self->{schema}->{tables}}) {
-            for ( @{ $dbh->selectall_arrayref("SHOW COLUMNS FROM `$table`") } ) {
+            for (@{$dbh->selectall_arrayref("SHOW COLUMNS FROM `$table`")}) {
                 push @{$self->{schema}->{table}->{$table}->{columns}}, $_->[0];
+
                 # find primary key
-                $self->{schema}->{table}->{$table}->{primary_key} =
-                    $_->[0] if lc($_->[3]) eq 'pri';
+                $self->{schema}->{table}->{$table}->{primary_key} = $_->[0]
+                  if lc($_->[3]) eq 'pri';
             }
         }
+
         # print Dumper $self;
         # exit;
     }
-    
+
     # SQLite CONFIGURATION
     # load schema from connection for sqlite
     if (lc($cfg->{driver}) eq 'sqlite') {
+
         # load tables
-        push @{$self->{schema}->{tables}}, $_->[2]
-            foreach @{ $dbh->selectall_arrayref(
-                        "SELECT * FROM sqlite_master WHERE type='table'") };
+        push @{$self->{schema}->{tables}}, $_->[2] foreach @{
+            $dbh->selectall_arrayref(
+                "SELECT * FROM sqlite_master WHERE type='table'")
+          };
+
         # load table columns
         foreach my $table (@{$self->{schema}->{tables}}) {
-            for ( @{ $dbh->selectall_arrayref("PRAGMA table_info('$table')") } ) {
+            for (@{$dbh->selectall_arrayref("PRAGMA table_info('$table')")}) {
                 push @{$self->{schema}->{table}->{$table}->{columns}}, $_->[1];
+
                 # find primary key
-                $self->{schema}->{table}->{$table}->{primary_key} =
-                    $_->[1] if lc($_->[5]) == 1;
+                $self->{schema}->{table}->{$table}->{primary_key} = $_->[1]
+                  if lc($_->[5]) == 1;
             }
         }
+
         # print Dumper $self;
         # exit;
     }
-    
+
     # setup reuseable connection using DBIx::Simple
     $self->{dbh} = DBIx::Simple->connect($dbh) or die DBIx::Simple->error;
-    
+    $self->{dbh}->result_class = 'DBIx::Simple::Result';
+
     # define defaults
     $self->{target} = '';
-    
+
     # create base accessors
     no warnings 'redefine';
     no strict 'refs';
-    
+
     foreach my $table (@{$self->{schema}->{tables}}) {
-        
-            my $class           = ref($self);
-            my $method          = $class    .  "::" . lc $table;
-            my $package_name    = $class    .  "::" . ucfirst $table;
-            my $package         = "package $package_name;" . q|
+
+        my $class        = ref($self);
+        my $method       = $class . "::" . lc $table;
+        my $package_name = $class . "::" . ucfirst $table;
+        my $package      = "package $package_name;" . q|
             
             use base 'Dancer::Plugin::ORMesque';
             
@@ -126,46 +133,47 @@ register dbi => sub {
             }
             1;
             |;
-            eval $package;
-            die print $@ if $@; # debugging
-            *{$method}  = sub {
-                return $package_name->new($self, $table);
-            };
-            # build dbo table
-            
+        eval $package;
+        die print $@ if $@;    # debugging
+        *{$method} = sub {
+            return $package_name->new($self, $table);
+        };
+
+        # build dbo table
+
     }
     return $self;
 };
 
 
 sub next {
-    my $dbo     = shift;
-    
-    my $next    = $dbo->{cursor} <= (int(@{$dbo->{collection}})-1) ? 1 : 0;
-    $dbo->{current}
-                = $dbo->{collection}->[$dbo->{cursor}] || {};
-                  $dbo->{cursor}++;
-    
-    return  $next;
+    my $dbo = shift;
+
+    my $next =
+      $dbo->{cursor} <= (int(@{$dbo->{collection}}) - 1) ? $dbo : undef;
+    $dbo->{current} = $dbo->{collection}->[$dbo->{cursor}] || {};
+    $dbo->{cursor}++;
+
+    return $next;
 }
 
 
 sub first {
-    my $dbo     = shift;
-    
-    $dbo->{cursor}  = 0;
+    my $dbo = shift;
+
+    $dbo->{cursor} = 0;
     $dbo->{current} = $dbo->{collection}->[0] || {};
-    
+
     return $dbo->current;
 }
 
 
 sub last {
-    my $dbo     = shift;
-    
-    $dbo->{cursor}  = (int(@{$dbo->{collection}})-1);
+    my $dbo = shift;
+
+    $dbo->{cursor} = (int(@{$dbo->{collection}}) - 1);
     $dbo->{current} = $dbo->{collection}->[$dbo->{cursor}] || {};
-    
+
     return $dbo->current;
 }
 
@@ -181,14 +189,14 @@ sub current {
 
 
 sub clear {
-    my $dbo     = shift;
-    
+    my $dbo = shift;
+
     foreach my $column (keys %{$dbo->{current}}) {
         $dbo->{current}->{$column} = '';
     }
-    
+
     $dbo->{collection} = [];
-    
+
     return $dbo;
 }
 
@@ -199,13 +207,13 @@ sub key {
 
 
 sub return {
-    my $dbo     = shift;
-    my %where   = %{ $dbo->current };
-    
+    my $dbo   = shift;
+    my %where = %{$dbo->current};
+
     delete $where{$dbo->key} if $dbo->key;
-    
+
     $dbo->read(\%where)->last;
-    
+
     return $dbo->current;
 }
 
@@ -213,17 +221,18 @@ sub return {
 sub count {
     my $dbo = shift;
     return scalar @{$dbo->{collection}};
-};
+}
 
 
 sub create {
     my $dbo     = shift;
     my $input   = shift || {};
     my @columns = keys %{$dbo->{current}};
-    
-    die "Cannot create an entry in table ($dbo->{table}) without any input parameters."
-        unless keys %{$input};
-    
+
+    die
+      "Cannot create an entry in table ($dbo->{table}) without any input parameters."
+      unless keys %{$input};
+
     # process direct input
     if ($input) {
         foreach my $i (keys %{$input}) {
@@ -232,12 +241,12 @@ sub create {
             }
         }
     }
-    
+
     # insert
     $dbo->{dbh}->insert($dbo->{table}, $dbo->{current});
-    
+
     return $dbo;
-};
+}
 
 
 sub read {
@@ -245,22 +254,22 @@ sub read {
     my $where   = shift || {};
     my $order   = shift || [];
     my $table   = $dbo->{table};
-    my @columns = keys %{ $dbo->{current} };
-    
+    my @columns = keys %{$dbo->{current}};
+
     # generate a where primary_key = ? clause
     if ($where && ref($where) ne "HASH") {
-        $where = {
-            $dbo->key => $where
-        };
+        $where = {$dbo->key => $where};
     }
-    
-    $dbo->{collection}  =
-        $dbo->{dbh}->select($table, \@columns, $where, $order)->hashes;
-    $dbo->{cursor}      = 0;
-    $dbo->{current}     = $dbo->{collection}->[0] || {};
-    
+
+    $dbo->{resultset} = sub {
+        return $dbo->{dbh}->select($table, \@columns, $where, $order);
+    };
+    $dbo->{collection} = $dbo->{resultset}->()->hashes;
+    $dbo->{cursor}     = 0;
+    $dbo->next;
+
     return $dbo;
-};
+}
 
 
 sub update {
@@ -268,61 +277,116 @@ sub update {
     my $input   = shift || {};
     my $where   = shift || {};
     my $table   = $dbo->{table};
-    my @columns = keys %{ $dbo->{current} };
-    
+    my @columns = keys %{$dbo->{current}};
+
     # process direct input
-    die "Attempting to update an entry in table ($dbo->$table) without any input."
-        unless keys %{$input};
-    
+    die
+      "Attempting to update an entry in table ($dbo->$table) without any input."
+      unless keys %{$input};
+
     # generate a where primary_key = ? clause
     if ($where && ref($where) ne "HASH") {
-        $where = {
-            $dbo->key => $where
-        };
+        $where = {$dbo->key => $where};
     }
-    
+
     $dbo->{dbh}->update($table, $input, $where) if keys %{$input};
-    
+
     return $dbo;
-};
+}
 
 
 sub delete {
-    my $dbo     = shift;
-    my $where   = shift || {};
-    my $table   = $dbo->{table};
-    
+    my $dbo   = shift;
+    my $where = shift || {};
+    my $table = $dbo->{table};
+
     # process where clause
-    if ($where && $dbo->key && ref($where) ne "HASH") {
-        $where = {
-            $dbo->key => $where
-        };
+    if (ref($where) eq "HASH") { }
+    elsif ($where && $dbo->key && ref($where) ne "HASH") {
+        $where = {$dbo->key => $where};
     }
     else {
-        die "Cannot delete without a proper where clause, " .
-            "use delete_all to purge the entire database table";
+        die "Cannot delete without a proper where clause, "
+          . "use delete_all to purge the entire database table";
     }
-    
+
     $dbo->{dbh}->delete($table, $where);
-    
+
     return $dbo;
-};
+}
 
 
 sub delete_all {
-    my $dbo     = shift;
-    my $table   = $dbo->{table};
-    
-    $dbo->{dbh}->delete($table);
-    
-    return $dbo;
-};
+    my $dbo   = shift;
+    my $table = $dbo->{table};
 
-# utilize DBIx::Simple query, and SQL::Interp iquery methods
+    $dbo->{dbh}->delete($table);
+
+    return $dbo;
+}
+
+
+
+
+sub columns {
+    shift->{resultset}->()->columns(@_);
+}
+
+
+sub into {
+    return shift->{resultset}->()->into(@_);
+}
+
+
+sub list {
+    return shift->{resultset}->()->list(@_);
+}
+
+
+sub array {
+    return shift->{resultset}->()->array(@_);
+}
+
+
+sub hash {
+    return shift->{resultset}->()->hash(@_);
+}
+
+
+sub flat {
+    return shift->{resultset}->()->flat(@_);
+}
+
+
+sub arrays {
+    return shift->{resultset}->()->arrays(@_);
+}
+
+
+sub hashes {
+    return shift->{resultset}->()->hashes(@_);
+}
+
+
+sub map_hashes {
+    return shift->{resultset}->()->map_hashes(@_);
+}
+
+
+sub map_arrays {
+    return shift->{resultset}->()->map_arrays(@_);
+}
+
+
+sub rows {
+    return shift->{resultset}->()->rows(@_);
+}
+
 
 sub query {
     return shift->{dbh}->query(@_);
 }
+
 
 sub iquery {
     return shift->{dbh}->iquery(@_);
@@ -337,21 +401,18 @@ __END__
 
 =head1 NAME
 
-Dancer::Plugin::ORMesque - Simple Object Relational Mapping for Dancer
+Dancer::Plugin::ORMesque - Light ORM for Dancer
 
 =head1 VERSION
 
-version 0.0101
+version 1.103040
 
 =head1 SYNOPSIS
 
-Dancer::Plugin::ORMesque is NOT a full-featured object relational
-mapper but is an ORM none the less whereby it creates and provides a database
-connection to the database of your choice and automatically creates objects
-and accessors for use in your application code without the need of having to
-write SQL. Dancer::Plugin::ORMesque uses L<SQL::Abstract> querying syntax. This
-module uses DBIx::Simple as a base class but only the query and iquery methods
-are made available.
+Dancer::Plugin::ORMesque is a lightweight ORM (object relational mapper) for
+for Dancer, it provides a database connection to the database of your choice
+and automatically creates objects and accessors for that database and its tables
+and columns. Dancer::Plugin::ORMesque uses L<SQL::Abstract> querying syntax.
 
 Connection details will be taken from your Dancer application config file,
 and should be specified as, for example:
@@ -368,6 +429,9 @@ and should be specified as, for example:
             RaiseError: 1
             AutoCommit: 1
         on_connect_do: ["SET NAMES 'utf8'", "SET CHARACTER SET 'utf8'" ]
+
+NOTE! In your configuration file, under plugins, the plugin that should be
+configured is 'Database' and not 'ORMesque'.
 
 The connection functionality is imported from L<Dancer::Plugin::Database>, please
 look into that plugin for more information. Please note that even if you use supply
@@ -480,13 +544,19 @@ a DSN directly in your configuration file you need to also specify a driver dire
 =head2 return
 
     The return method queries the database for the last created object(s).
+    It is important to note that while return() can be used in most cases
+    like the last_insert_id() to fetch the recently last created entry,
+    function, you should not use it that way unless you know exactly what
+    this method does and what your database will return.
     
-    my $new_record = dbi->table->create(...)->return;
+    my $new_record = dbi->table->create(...)->return();
 
 =head2 count
 
     The count method returns the number of items in the resultset of the
-    object it's called on.
+    object it's called on. Note! If you make changes to the database, you
+    will need to call read() before calling count() to get an accurate
+    count as count() operates on the current collection.
     
     my $count = dbi->table->read->count;
 
@@ -504,9 +574,9 @@ a DSN directly in your configuration file you need to also specify a driver dire
     
     # create a copy of an existing record
     my $user = dbi->users;
-    $user->read->first;
-    $user->full_name('Copy of ' . $user->full_name);
-    $user->user_name('foobarbaz');
+    $user->read;
+    $user->full_name_column('Copy of ' . $user->full_name);
+    $user->user_name_column('foobarbaz');
     $user->create($user->current);
 
     # get newly created record
@@ -574,12 +644,156 @@ a DSN directly in your configuration file you need to also specify a driver dire
     
     dbi->table->delete_all;
 
-=head1 EXPERIMENTAL
+=head2 columns
 
-This plugin is highly **experimental** and subject to radical design changes based on
-random flights-of-fancy. Currently the only databased supported are MySQL and SQLite
-but more support will be added once I have a stable model to with with. Please
-give feedback.
+    Returns a list of column names. In scalar context, returns an array reference.
+    Column names are lower cased if lc_columns was true when the query was executed.
+
+=head2 into
+
+    Binds the columns returned from the query to variable(s)
+    
+    dbi->table->read(1)->into(my ($foo, $bar));
+
+=head2 list
+
+    Fetches a single row and returns a list of values. In scalar context,
+    returns only the last value.
+    
+    my @values = dbi->table->read(1)->list;
+
+=head2 array
+
+    Fetches a single row and returns an array reference.
+    
+    my $row = dbi->table->read(1)->array;
+    print $row->[0];
+
+=head2 hash
+
+    Fetches a single row and returns a hash reference.
+    Keys are lower cased if lc_columns was true when the query was executed.
+    
+    my $row = dbi->table->read(1)->hash;
+    print $row->{id};
+
+=head2 flat
+
+    Fetches all remaining rows and returns a flattened list.
+    In scalar context, returns an array reference.
+    
+    my @records = dbi->table->read(1)->flat;
+    print $records[0];
+
+=head2 arrays
+
+    Fetches all remaining rows and returns a list of array references.
+    In scalar context, returns an array reference.
+    
+    my $rows = dbi->table->read(1)->arrays;
+    print $rows->[0];
+
+=head2 hashes
+
+    Fetches all remaining rows and returns a list of hash references.
+    In scalar context, returns an array reference.
+    Keys are lower cased if lc_columns was true when the query was executed.
+    
+    my $rows = dbi->table->read(1)->hashes;
+    print $rows->[0]->{id};
+
+=head2 map_hashes
+
+    Constructs a hash of hash references keyed by the values in the chosen column.
+    In scalar context, returns a hash reference.
+    In list context, returns interleaved keys and values.
+    
+    my $customer = dbi->table->read->map_hashes('id');
+    # $customers = { $id => { name => $name, location => $location } }
+
+=head2 map_arrays
+
+    Constructs a hash of array references keyed by the values in the chosen column.
+    In scalar context, returns a hash reference.
+    In list context, returns interleaved keys and values.
+    
+    my $customer = dbi->table->read->map_arrays(0);
+    # $customers = { $id => [ $name, $location ] }
+
+=head2 rows
+
+    Returns the number of rows affected by the last row affecting command,
+    or -1 if the number of rows is not known or not available.
+    For SELECT statements, it is generally not possible to know how many
+    rows are returned. MySQL does provide this information. See DBI for a
+    detailed explanation.
+    
+    my $changes = dbi->table->insert(dbi->table->current)->rows;
+
+=head2 query
+
+The query function provides a simplified interface to DBI, Perl's powerful
+database interfacing module. This function provides auto-escaping/interpolation
+as well as resultset abstraction.
+
+    $db->query('DELETE FROM foo WHERE id = ?', $id);
+    $db->query('SELECT 1 + 1')->into(my $two);
+    $db->query('SELECT 3, 2 + 2')->into(my ($three, $four));
+
+    $db->query(
+        'SELECT name, email FROM people WHERE email = ? LIMIT 1',
+        $mail
+    )->into(my ($name, $email));
+    
+    # One big flattened list (primarily for single column queries)
+    
+    my @names = $db->query('SELECT name FROM people WHERE id > 5')->flat;
+    
+    # Rows as array references
+    
+    for my $row ($db->query('SELECT name, email FROM people')->arrays) {
+        print "Name: $row->[0], Email: $row->[1]\n";
+    }
+
+=head2 iquery
+
+The iquery function is used to interpolate Perl variables into SQL statements, it
+converts a list of intermixed SQL fragments and variable references into a
+conventional SQL string and list of bind values suitable for passing onto DBI
+
+    my $result = $db->iquery('INSERT INTO table', \%item);
+    my $result = $db->iquery('UPDATE table SET', \%item, 'WHERE y <> ', \2);
+    my $result = $db->iquery('DELETE FROM table WHERE y = ', \2);
+
+    # These two select syntax produce the same result
+    my $result = $db->iquery('SELECT * FROM table WHERE x = ', \$s, 'AND y IN', \@v);
+    my $result = $db->iquery('SELECT * FROM table WHERE', {x => $s, y => \@v});
+
+    my $first_record = $result->hash;
+    for ($result->hashes) { ... }
+
+=head1 PREAMBLE
+
+Dancer::Plugin::ORMesque is a lightweight ORM for Dancer supporting all major
+databases. Dancer::Plugin::ORMesque is a great alternative to
+L<Dancer::Plugin::Database> if you are looking for a bit more automation and a
+fair alternative to Dancer::Plugin::DBIC is you don't have the time, need or
+desire to learn L<Dancer::Plugin::DBIC> and L<DBIx::Class>.
+
+=head1 RESULTSET METHODS
+
+Dancer::Plugin::ORMesque provides columns accessors to the current record in the
+resultset object which is accessible via current() by default, collection()
+returns an arrayref of hashrefs based on the last read() call. Alternatively you
+may use the following methods to further transform and manipulate the returned
+resultset.
+
+=head1 UTILITIES
+
+Dancer::Plugin::ORMesque is a sub-class of L<DBIx::Simple> and uses L<SQL::Abstract>
+as its querying language, it also provides access to L<SQL::Interp> for good measure.
+For an in-depth look at what you can do with these utilities, please check out
+l<DBIx::Simple::Examples>.
 
 =head1 AUTHOR
 
