@@ -2,7 +2,7 @@
 
 package Dancer::Plugin::ORMesque;
 BEGIN {
-  $Dancer::Plugin::ORMesque::VERSION = '1.103040_1';
+  $Dancer::Plugin::ORMesque::VERSION = '1.103042';
 }
 
 use strict;
@@ -449,14 +449,19 @@ Dancer::Plugin::ORMesque - Light ORM for Dancer
 
 =head1 VERSION
 
-version 1.103040_1
+version 1.103042
 
 =head1 SYNOPSIS
 
-Dancer::Plugin::ORMesque is a lightweight ORM (object relational mapper) for
-Dancer, it provides a database connection to the database of your choice
-and automatically creates objects and accessors for that database and its tables
-and columns. Dancer::Plugin::ORMesque uses L<SQL::Abstract> querying syntax.
+Dancer::Plugin::ORMesque is a lightweight ORM for Dancer supporting SQLite, MySQL
+and PostgreSQL databases making it a great alternative to L<Dancer::Plugin::Database>
+if you are looking for a bit more automation and a fair alternative to
+Dancer::Plugin::DBIC when you don't have the time, need or desire to learn
+L<Dancer::Plugin::DBIC> and L<DBIx::Class>. Dancer::Plugin::ORMesque is an
+object relational mapper for Dancer that provides a database connection to the
+database of your choice and automatically creates objects and accessors for that
+database and its tables and columns. Dancer::Plugin::ORMesque uses
+L<SQL::Abstract> querying syntax.
 
 Connection details will be taken from your Dancer application config file,
 and should be specified as, for example:
@@ -685,14 +690,6 @@ a DSN directly in your configuration file you need to also specify a driver dire
     The delete_all method is use to intentionally empty the entire database table.
     
     dbi->table->delete_all;
-
-=head1 PREAMBLE
-
-Dancer::Plugin::ORMesque is a lightweight ORM for Dancer supporting SQLite, MySQL
-and PostgreSQL databases making it a great alternative to L<Dancer::Plugin::Database>
-if you are looking for a bit more automation and a fair alternative to
-Dancer::Plugin::DBIC when you don't have the time, need or
-desire to learn L<Dancer::Plugin::DBIC> and L<DBIx::Class>.
 
 =head1 RESULTSET METHODS
 
