@@ -2,7 +2,7 @@
 
 package Dancer::Plugin::ORMesque;
 BEGIN {
-  $Dancer::Plugin::ORMesque::VERSION = '1.103040';
+  $Dancer::Plugin::ORMesque::VERSION = '1.103040_1';
 }
 
 use strict;
@@ -27,6 +27,47 @@ register dbi => sub {
     warn "Error connecting to the database..." unless $dbh;
     warn "No database driver specified in the configuration file"
       unless $cfg->{driver};
+
+    # POSTGRESQL CONFIGURATION
+    # load schema from connection for postgresql
+    if (lc($cfg->{driver}) =~ '^postgre(s)?(ql)?$') {
+
+        # load tables
+        push @{$self->{schema}->{tables}}, $_->[0]
+          foreach @{$dbh->selectall_arrayref("SELECT table_name FROM
+            information_schema.tables WHERE table_schema = 'public' ")};
+
+        # load table columns
+        foreach my $table (@{$self->{schema}->{tables}}) {
+            
+            for (@{$dbh->selectall_arrayref("SELECT column_name FROM
+                information_schema.columns WHERE table_name ='$table'")}) {
+                
+                push @{$self->{schema}->{table}->{$table}->{columns}}, $_->[0];
+                
+            }
+            
+            # get primary key
+            my $pkey_query = qq|
+            SELECT               
+            pg_attribute.attname, 
+            format_type(pg_attribute.atttypid, pg_attribute.atttypmod) 
+            FROM pg_index, pg_class, pg_attribute 
+            WHERE 
+            pg_class.oid = '$table'::regclass AND
+            indrelid = pg_class.oid AND
+            pg_attribute.attrelid = pg_class.oid AND 
+            pg_attribute.attnum = any(pg_index.indkey)
+            AND indisprimary|;
+            
+            my $key = $dbh->selectall_arrayref($pkey_query);
+            $self->{schema}->{table}->{$table}->{primary_key} = $key->[0]->[0];
+            
+        }
+
+        # print Dumper $self;
+        # exit;
+    }
 
     # MYSQL CONFIGURATION
     # load schema from connection for mysql
@@ -75,6 +116,9 @@ register dbi => sub {
         # print Dumper $self;
         # exit;
     }
+    
+    die "Could not read the specified database $cfg->{driver}"
+        unless @{$self->{schema}->{tables}};
 
     # setup reuseable connection using DBIx::Simple
     $self->{dbh} = DBIx::Simple->connect($dbh) or die DBIx::Simple->error;
@@ -405,12 +449,12 @@ Dancer::Plugin::ORMesque - Light ORM for Dancer
 
 =head1 VERSION
 
-version 1.103040
+version 1.103040_1
 
 =head1 SYNOPSIS
 
 Dancer::Plugin::ORMesque is a lightweight ORM (object relational mapper) for
-for Dancer, it provides a database connection to the database of your choice
+Dancer, it provides a database connection to the database of your choice
 and automatically creates objects and accessors for that database and its tables
 and columns. Dancer::Plugin::ORMesque uses L<SQL::Abstract> querying syntax.
 
@@ -478,8 +522,6 @@ a DSN directly in your configuration file you need to also specify a driver dire
     
     $user->collection; # returns an array of hashrefs
     $user->current;    # return a hashref of the current row in the collection
-
-=head1 METHODS
 
 =head2 dbi
 
@@ -638,11 +680,27 @@ a DSN directly in your configuration file you need to also specify a driver dire
     
     dbi->table->delete(1);
 
-=head2 delete
+=head2 delete_all
 
-    The delete_all method is use to intentiionally empty the entire database table.
+    The delete_all method is use to intentionally empty the entire database table.
     
     dbi->table->delete_all;
+
+=head1 PREAMBLE
+
+Dancer::Plugin::ORMesque is a lightweight ORM for Dancer supporting SQLite, MySQL
+and PostgreSQL databases making it a great alternative to L<Dancer::Plugin::Database>
+if you are looking for a bit more automation and a fair alternative to
+Dancer::Plugin::DBIC when you don't have the time, need or
+desire to learn L<Dancer::Plugin::DBIC> and L<DBIx::Class>.
+
+=head1 RESULTSET METHODS
+
+Dancer::Plugin::ORMesque provides columns accessors to the current record in the
+resultset object which is accessible via current() by default, collection()
+returns an arrayref of hashrefs based on the last read() call. Alternatively you
+may use the following methods to further transform and manipulate the returned
+resultset.
 
 =head2 columns
 
@@ -730,6 +788,13 @@ a DSN directly in your configuration file you need to also specify a driver dire
     
     my $changes = dbi->table->insert(dbi->table->current)->rows;
 
+=head1 UTILITIES
+
+Dancer::Plugin::ORMesque is a sub-class of L<DBIx::Simple> and uses L<SQL::Abstract>
+as its querying language, it also provides access to L<SQL::Interp> for good measure.
+For an in-depth look at what you can do with these utilities, please check out
+l<DBIx::Simple::Examples>.
+
 =head2 query
 
 The query function provides a simplified interface to DBI, Perl's powerful
@@ -771,29 +836,6 @@ conventional SQL string and list of bind values suitable for passing onto DBI
 
     my $first_record = $result->hash;
     for ($result->hashes) { ... }
-
-=head1 PREAMBLE
-
-Dancer::Plugin::ORMesque is a lightweight ORM for Dancer supporting all major
-databases. Dancer::Plugin::ORMesque is a great alternative to
-L<Dancer::Plugin::Database> if you are looking for a bit more automation and a
-fair alternative to Dancer::Plugin::DBIC is you don't have the time, need or
-desire to learn L<Dancer::Plugin::DBIC> and L<DBIx::Class>.
-
-=head1 RESULTSET METHODS
-
-Dancer::Plugin::ORMesque provides columns accessors to the current record in the
-resultset object which is accessible via current() by default, collection()
-returns an arrayref of hashrefs based on the last read() call. Alternatively you
-may use the following methods to further transform and manipulate the returned
-resultset.
-
-=head1 UTILITIES
-
-Dancer::Plugin::ORMesque is a sub-class of L<DBIx::Simple> and uses L<SQL::Abstract>
-as its querying language, it also provides access to L<SQL::Interp> for good measure.
-For an in-depth look at what you can do with these utilities, please check out
-l<DBIx::Simple::Examples>.
 
 =head1 AUTHOR
 
