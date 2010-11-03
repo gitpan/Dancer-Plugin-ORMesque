@@ -2,7 +2,7 @@
 
 package Dancer::Plugin::ORMesque;
 BEGIN {
-  $Dancer::Plugin::ORMesque::VERSION = '1.103042';
+  $Dancer::Plugin::ORMesque::VERSION = '1.103070';
 }
 
 use strict;
@@ -12,16 +12,24 @@ use base 'DBIx::Simple';
 use Dancer qw/:syntax/;
 use Dancer::Plugin;
 use Dancer::Plugin::Database;
+use Dancer::Plugin::ORMesque::SchemaLoader;
 
 use SQL::Abstract;
 use SQL::Interp;
 
+our $Cache = undef;
+
 
 
 register dbi => sub {
+    
+    return $Cache if $Cache;
+    
     my $cfg  = config->{plugins}->{Database};
     my $dbh  = database;
     my $self = {};
+    my $this = {};
+    
     bless $self, 'Dancer::Plugin::ORMesque';
 
     warn "Error connecting to the database..." unless $dbh;
@@ -29,94 +37,19 @@ register dbi => sub {
       unless $cfg->{driver};
 
     # POSTGRESQL CONFIGURATION
-    # load schema from connection for postgresql
-    if (lc($cfg->{driver}) =~ '^postgre(s)?(ql)?$') {
-
-        # load tables
-        push @{$self->{schema}->{tables}}, $_->[0]
-          foreach @{$dbh->selectall_arrayref("SELECT table_name FROM
-            information_schema.tables WHERE table_schema = 'public' ")};
-
-        # load table columns
-        foreach my $table (@{$self->{schema}->{tables}}) {
-            
-            for (@{$dbh->selectall_arrayref("SELECT column_name FROM
-                information_schema.columns WHERE table_name ='$table'")}) {
-                
-                push @{$self->{schema}->{table}->{$table}->{columns}}, $_->[0];
-                
-            }
-            
-            # get primary key
-            my $pkey_query = qq|
-            SELECT               
-            pg_attribute.attname, 
-            format_type(pg_attribute.atttypid, pg_attribute.atttypmod) 
-            FROM pg_index, pg_class, pg_attribute 
-            WHERE 
-            pg_class.oid = '$table'::regclass AND
-            indrelid = pg_class.oid AND
-            pg_attribute.attrelid = pg_class.oid AND 
-            pg_attribute.attnum = any(pg_index.indkey)
-            AND indisprimary|;
-            
-            my $key = $dbh->selectall_arrayref($pkey_query);
-            $self->{schema}->{table}->{$table}->{primary_key} = $key->[0]->[0];
-            
-        }
-
-        # print Dumper $self;
-        # exit;
-    }
+    $this = Dancer::Plugin::ORMesque::SchemaLoader
+    ->new($dbh)->mysql if lc($cfg->{driver}) =~ '^postgre(s)?(ql)?$';
+    
 
     # MYSQL CONFIGURATION
-    # load schema from connection for mysql
-    if (lc($cfg->{driver}) eq 'mysql') {
-
-        # load tables
-        push @{$self->{schema}->{tables}}, $_->[0]
-          foreach @{$dbh->selectall_arrayref("SHOW TABLES")};
-
-        # load table columns
-        foreach my $table (@{$self->{schema}->{tables}}) {
-            for (@{$dbh->selectall_arrayref("SHOW COLUMNS FROM `$table`")}) {
-                push @{$self->{schema}->{table}->{$table}->{columns}}, $_->[0];
-
-                # find primary key
-                $self->{schema}->{table}->{$table}->{primary_key} = $_->[0]
-                  if lc($_->[3]) eq 'pri';
-            }
-        }
-
-        # print Dumper $self;
-        # exit;
-    }
+    $this = Dancer::Plugin::ORMesque::SchemaLoader
+    ->new($dbh)->mysql if lc($cfg->{driver}) eq 'mysql';
 
     # SQLite CONFIGURATION
-    # load schema from connection for sqlite
-    if (lc($cfg->{driver}) eq 'sqlite') {
-
-        # load tables
-        push @{$self->{schema}->{tables}}, $_->[2] foreach @{
-            $dbh->selectall_arrayref(
-                "SELECT * FROM sqlite_master WHERE type='table'")
-          };
-
-        # load table columns
-        foreach my $table (@{$self->{schema}->{tables}}) {
-            for (@{$dbh->selectall_arrayref("PRAGMA table_info('$table')")}) {
-                push @{$self->{schema}->{table}->{$table}->{columns}}, $_->[1];
-
-                # find primary key
-                $self->{schema}->{table}->{$table}->{primary_key} = $_->[1]
-                  if lc($_->[5]) == 1;
-            }
-        }
-
-        # print Dumper $self;
-        # exit;
-    }
+    $this = Dancer::Plugin::ORMesque::SchemaLoader
+    ->new($dbh)->sqlite if lc($cfg->{driver}) eq 'sqlite';
     
+    $self->{schema} = $this->{schema};
     die "Could not read the specified database $cfg->{driver}"
         unless @{$self->{schema}->{tables}};
 
@@ -186,8 +119,15 @@ register dbi => sub {
         # build dbo table
 
     }
+    
+    $Cache = $self;
     return $self;
 };
+
+
+sub reset {
+    $Cache = undef;
+}
 
 
 sub next {
@@ -436,6 +376,7 @@ sub iquery {
     return shift->{dbh}->iquery(@_);
 }
 
+
 register_plugin;
 
 1;
@@ -449,14 +390,14 @@ Dancer::Plugin::ORMesque - Light ORM for Dancer
 
 =head1 VERSION
 
-version 1.103042
+version 1.103070
 
 =head1 SYNOPSIS
 
-Dancer::Plugin::ORMesque is a lightweight ORM for Dancer supporting SQLite, MySQL
-and PostgreSQL databases making it a great alternative to L<Dancer::Plugin::Database>
-if you are looking for a bit more automation and a fair alternative to
-Dancer::Plugin::DBIC when you don't have the time, need or desire to learn
+Dancer::Plugin::ORMesque is a lightweight ORM for Dancer supporting any database
+listed under L<Dancer::Plugin::ORMesque::SchemaLoader> making it a great alternative
+to L<Dancer::Plugin::Database> if you are looking for a bit more automation and a fair
+alternative to Dancer::Plugin::DBIC when you don't have the time, need or desire to learn
 L<Dancer::Plugin::DBIC> and L<DBIx::Class>. Dancer::Plugin::ORMesque is an
 object relational mapper for Dancer that provides a database connection to the
 database of your choice and automatically creates objects and accessors for that
@@ -534,6 +475,15 @@ a DSN directly in your configuration file you need to also specify a driver dire
     which uses the datasource configuration details in your configuration file
     to create database objects and accessors.
     
+    my $db = dbi;
+
+=head2 reset
+
+    Once the dbi() keyword analyzes the specified database, the schema is cached
+    to for speed and performance. Occassionally you may want to re-read the
+    database schema.
+    
+    dbi->reset;
     my $db = dbi;
 
 =head2 next
@@ -833,6 +783,19 @@ conventional SQL string and list of bind values suitable for passing onto DBI
 
     my $first_record = $result->hash;
     for ($result->hashes) { ... }
+
+=head1 WHERE ART THOU JOINS?
+
+If you have used Dancer::Plugin::ORMesque with a project of any sophistication
+you will have undoubtedly noticed that the is no mechanism for specifying joins
+and this is intentional. Dancer::Plugin::ORMesque is an ORM, and object relational
+mapper and that is its purpose, it is not a SQL substitute. Joins are neccessary
+in SQL as they are the only means of gathering related data. Such is not the case
+with Perl code. The following is an example of gathering data using ORMesque...
+
+    my $user = dbi->user->read->first;
+    $user->{locations} = dbi->user_locations->read({ user => $user->id });
+    return $user;
 
 =head1 AUTHOR
 

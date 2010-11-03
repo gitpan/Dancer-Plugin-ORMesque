@@ -5,6 +5,7 @@ Makefile.PL
 README
 dist.ini
 lib/Dancer/Plugin/ORMesque.pm
+lib/Dancer/Plugin/ORMesque/SchemaLoader.pm
 t/000_database.db
 t/000_database.db.bak
 t/001_load.t

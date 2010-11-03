@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More tests => 53, import => ['!pass'];
+use Test::More tests => 58, import => ['!pass'];
 use Test::Exception;
 use FindBin;
 
@@ -84,4 +84,13 @@ ok $user->read->count eq 1, 'And then there was one';
 ok $user->first, 'you are the first';
 ok $user->last, 'and the last';
 
-# warn to_dumper { $user->read->map_hashes('name') };
+diag 'functions tests';
+
+ok $user->clear, 'cleaned house';
+ok $user->name('Johnny'), 'preparing the new person';
+ok !$user->age(undef), 'he hasnt been born yet';
+ok $user->create($user->current), 'he was just inserted :)';
+ok $user->return, 'he was born successfully';
+
+
+# warn to_dumper $user->return;
