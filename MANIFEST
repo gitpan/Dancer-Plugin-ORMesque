@@ -3,11 +3,16 @@ MANIFEST
 META.yml
 Makefile.PL
 README
+TODO
 dist.ini
 lib/Dancer/Plugin/ORMesque.pm
 lib/Dancer/Plugin/ORMesque/SchemaLoader.pm
 t/000_database.db
 t/000_database.db.bak
+t/001_database.db
+t/001_database.db.bak
 t/001_load.t
 t/002_rundown.t
+t/003_referential.t
+t/004_joindata.t
 t/lib/Dancer/Plugin/Database.pm

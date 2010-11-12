@@ -2,7 +2,7 @@
 
 package Dancer::Plugin::ORMesque;
 BEGIN {
-  $Dancer::Plugin::ORMesque::VERSION = '1.103070';
+  $Dancer::Plugin::ORMesque::VERSION = '1.103160';
 }
 
 use strict;
@@ -22,14 +22,14 @@ our $Cache = undef;
 
 
 register dbi => sub {
-    
+
     return $Cache if $Cache;
-    
+
     my $cfg  = config->{plugins}->{Database};
     my $dbh  = database;
     my $self = {};
     my $this = {};
-    
+
     bless $self, 'Dancer::Plugin::ORMesque';
 
     warn "Error connecting to the database..." unless $dbh;
@@ -37,21 +37,21 @@ register dbi => sub {
       unless $cfg->{driver};
 
     # POSTGRESQL CONFIGURATION
-    $this = Dancer::Plugin::ORMesque::SchemaLoader
-    ->new($dbh)->mysql if lc($cfg->{driver}) =~ '^postgre(s)?(ql)?$';
-    
+    $this = Dancer::Plugin::ORMesque::SchemaLoader->new($dbh)->mysql
+      if lc($cfg->{driver}) =~ '^postgre(s)?(ql)?$';
+
 
     # MYSQL CONFIGURATION
-    $this = Dancer::Plugin::ORMesque::SchemaLoader
-    ->new($dbh)->mysql if lc($cfg->{driver}) eq 'mysql';
+    $this = Dancer::Plugin::ORMesque::SchemaLoader->new($dbh)->mysql
+      if lc($cfg->{driver}) eq 'mysql';
 
     # SQLite CONFIGURATION
-    $this = Dancer::Plugin::ORMesque::SchemaLoader
-    ->new($dbh)->sqlite if lc($cfg->{driver}) eq 'sqlite';
-    
+    $this = Dancer::Plugin::ORMesque::SchemaLoader->new($dbh)->sqlite
+      if lc($cfg->{driver}) eq 'sqlite';
+
     $self->{schema} = $this->{schema};
     die "Could not read the specified database $cfg->{driver}"
-        unless @{$self->{schema}->{tables}};
+      unless @{$self->{schema}->{tables}};
 
     # setup reuseable connection using DBIx::Simple
     $self->{dbh} = DBIx::Simple->connect($dbh) or die DBIx::Simple->error;
@@ -119,10 +119,30 @@ register dbi => sub {
         # build dbo table
 
     }
-    
+
     $Cache = $self;
     return $self;
 };
+
+sub _safe_sql_names {
+    my $dbo = shift;
+    if ("HASH" eq ref $_[0]) {
+        return {
+            map {
+                    $dbo->{schema}->{escape_string} 
+                  . $_
+                  . $dbo->{schema}->{escape_string} => $_[0]->{$_}
+              } keys %{$_[0]}
+        };
+    }
+    else {
+        return map {
+                $dbo->{schema}->{escape_string} 
+              . $_
+              . $dbo->{schema}->{escape_string}
+        } @_;
+    }
+}
 
 
 sub reset {
@@ -134,7 +154,7 @@ sub next {
     my $dbo = shift;
 
     my $next =
-      $dbo->{cursor} <= (int(@{$dbo->{collection}}) - 1) ? $dbo : undef;
+      $dbo->{cursor} <= (scalar(@{$dbo->{collection}}) - 1) ? $dbo : undef;
     $dbo->{current} = $dbo->{collection}->[$dbo->{cursor}] || {};
     $dbo->{cursor}++;
 
@@ -155,7 +175,7 @@ sub first {
 sub last {
     my $dbo = shift;
 
-    $dbo->{cursor} = (int(@{$dbo->{collection}}) - 1);
+    $dbo->{cursor} = (scalar(@{$dbo->{collection}}) - 1);
     $dbo->{current} = $dbo->{collection}->[$dbo->{cursor}] || {};
 
     return $dbo->current;
@@ -190,6 +210,15 @@ sub key {
 }
 
 
+sub select {
+    my $dbo = shift;
+
+    $dbo->{select} = [@_] if @_;
+
+    return $dbo;
+}
+
+
 sub return {
     my $dbo   = shift;
     my %where = %{$dbo->current};
@@ -198,7 +227,7 @@ sub return {
 
     $dbo->read(\%where)->last;
 
-    return $dbo->current;
+    return $dbo;
 }
 
 
@@ -211,13 +240,14 @@ sub count {
 sub create {
     my $dbo     = shift;
     my $input   = shift || {};
-    my @columns = keys %{$dbo->{current}};
+    my @columns = $dbo->_safe_sql_names(keys %{$dbo->{current}});
 
     die
       "Cannot create an entry in table ($dbo->{table}) without any input parameters."
       unless keys %{$input};
 
-    # process direct input
+    # add where clause to current for
+    # $dbo->create(..)->return operations
     if ($input) {
         foreach my $i (keys %{$input}) {
             if (defined $dbo->{current}->{$i}) {
@@ -227,7 +257,7 @@ sub create {
     }
 
     # insert
-    $dbo->{dbh}->insert($dbo->{table}, $dbo->{current});
+    $dbo->{dbh}->insert($dbo->{table}, $input);
 
     return $dbo;
 }
@@ -238,7 +268,14 @@ sub read {
     my $where   = shift || {};
     my $order   = shift || [];
     my $table   = $dbo->{table};
-    my @columns = keys %{$dbo->{current}};
+    my @columns = ();
+
+    if (defined $dbo->{select}) {
+        @columns = $dbo->_safe_sql_names(@{$dbo->{select}});
+    }
+    else {
+        @columns = $dbo->_safe_sql_names(keys %{$dbo->{current}});
+    }
 
     # generate a where primary_key = ? clause
     if ($where && ref($where) ne "HASH") {
@@ -248,8 +285,31 @@ sub read {
     $dbo->{resultset} = sub {
         return $dbo->{dbh}->select($table, \@columns, $where, $order);
     };
-    $dbo->{collection} = $dbo->{resultset}->()->hashes;
-    $dbo->{cursor}     = 0;
+
+
+    if (defined $dbo->{select}) {
+        $dbo->{collection} = [
+
+            map {
+                foreach my $i (keys %{$dbo->{current}})
+                {
+                    unless (defined $_->{$i}) {
+                        $_->{$i} = '';
+                    }
+                }
+
+                $_
+              }
+
+              @{$dbo->{resultset}->()->hashes}
+        ];
+        delete $dbo->{select};
+    }
+    else {
+        $dbo->{collection} = $dbo->{resultset}->()->hashes;
+    }
+
+    $dbo->{cursor} = 0;
     $dbo->next;
 
     return $dbo;
@@ -261,7 +321,7 @@ sub update {
     my $input   = shift || {};
     my $where   = shift || {};
     my $table   = $dbo->{table};
-    my @columns = keys %{$dbo->{current}};
+    my @columns = $dbo->_safe_sql_names(keys %{$dbo->{current}});
 
     # process direct input
     die
@@ -307,6 +367,72 @@ sub delete_all {
     $dbo->{dbh}->delete($table);
 
     return $dbo;
+}
+
+
+sub join {
+    my $dbo = shift;
+
+    die 'Join is meant to be called on ORMesque objects with table definitions'
+      unless $dbo->{table};
+
+    my @objs = @_;
+    my $rs   = [];
+    my $q    = 0;
+
+    unshift @objs, $dbo;
+
+    my @tmps = ();
+
+    for (my $i = 0; $i < @objs; $i++) {
+        if ("HASH" eq ref $objs[$i]) {
+            $tmps[$#tmps]->{join_configuration} = $objs[$i];
+        }
+        else {
+            $objs[$i]->{join_configuration} = {};
+            push @tmps, $objs[$i];
+        }
+    }
+
+    @objs = @tmps;
+
+    if (@objs > 1) {
+        foreach my $obj (@objs) {
+            die 'Invalid ORMesque object passed to join'
+              unless $obj->{table} && $obj->{collection};
+        }
+
+        # use the first object to set the length of the aggregator
+        for (my $i = 0; $i < scalar(@{$objs[0]->{collection}}); $i++) {
+            my $aggregate = {};
+            for (my $y = 0; $y < @objs; $y++) {
+                my $cfg = $objs[$y]->{join_configuration};
+                my $rec = $objs[$y]->{collection}->[$i];
+                if (keys %{$objs[$y]->{join_configuration}}) {
+                    if ($cfg->{persist}) {
+                        $rec = $objs[$y]->{collection}->[0];
+                    }
+                }
+                my $new =
+                  {map { $objs[$y]->{table} . "_" . $_ => $rec->{$_} }
+                      keys %{($rec || $objs[$y]->{current})}};
+                if ($cfg->{columns}) {
+                    my $xchg = {};
+                    foreach (keys %{$cfg->{columns}}) {
+                        $xchg->{$cfg->{columns}->{$_}} = $new->{$_};
+                    }
+                    $new = $xchg;
+                }
+                $aggregate = {%{$aggregate}, %{$new}};
+            }
+            $rs->[$q++] = $aggregate;
+        }
+        return $rs;
+    }
+    else {
+        die 'Please supply two or more ORMesque objects which may include the '
+          . 'invoking object (self) before performing a join';
+    }
 }
 
 
@@ -376,7 +502,6 @@ sub iquery {
     return shift->{dbh}->iquery(@_);
 }
 
-
 register_plugin;
 
 1;
@@ -390,7 +515,7 @@ Dancer::Plugin::ORMesque - Light ORM for Dancer
 
 =head1 VERSION
 
-version 1.103070
+version 1.103160
 
 =head1 SYNOPSIS
 
@@ -538,6 +663,14 @@ a DSN directly in your configuration file you need to also specify a driver dire
     
     dbi->table->key;
 
+=head2 select
+
+    The select method defines specific columns to be used in the generated
+    SQL query. This useful for database tables that have lots of columns
+    where only a few are actually needed.
+    
+    my $table = dbi->select('foo', 'bar')->read();
+
 =head2 return
 
     The return method queries the database for the last created object(s).
@@ -640,6 +773,76 @@ a DSN directly in your configuration file you need to also specify a driver dire
     The delete_all method is use to intentionally empty the entire database table.
     
     dbi->table->delete_all;
+
+=head2 join
+
+If you have used Dancer::Plugin::ORMesque with a project of any sophistication
+you will have undoubtedly noticed that the is no mechanism for specifying joins
+and this is intentional. Dancer::Plugin::ORMesque is an ORM, and object relational
+mapper and that is its purpose, it is not a SQL substitute. Joins are neccessary
+in SQL as they are the only means of gathering related data. Such is not the case
+with Perl code, however, even in code the need to join related datasets exists and
+that is the need we address. The join method "Does Not Execute Any SQL", in-fact
+the join method is meant to be called after the desired resultsets have be gathered.
+The join method is merely an aggregator of result sets.
+
+    my ($cd, $artist) = (dbi->cd, dbi->artist);
+
+    $artist->read({ id => $aid });
+    $cd->read({ artist => $aid });
+
+Always use the larger dataset to initiate the join, in the following example, the
+list we want is "the list of cds" and we want to include the artist information with
+every "cd" entry so we use the persist option.
+
+    my $resultset = $cd->join($artist, {
+        persist => 1
+    });
+
+The join configuration option "persist" when set true will instruct the aggregator to
+include the first entry of the associated table with each entry in the primary list
+which is the list (collection) within the object that initiated the join. Every
+table object may be passed an options join configuration object as follows:
+
+    my $resultset = $cd->join($artist, {
+        persist => 1
+    });
+    
+    .. which is the same as ..
+    
+    my $resultset = $cd->join({
+    }, $artist, {
+        persist => 1
+    });
+    
+    .. more complexity ..
+    
+    my $resultset = $track->join($cd, {
+        persist => 1
+    }, $artist, {
+        persist => 1
+    });
+
+By default, a joined resultset is returned as an arrayref of hashrefs with all table
+columns as keys which are in $table_$columnName format. This is not always ideal and
+so the "columns" join configuration option allows you to specify exactly which columns
+to include as well as supply an alias if desired. The following is an example of that:
+
+    my $resultset = $track->join({
+        columns => {
+            track_name => 'track',
+        }
+    }, $cd, {
+        persist => 1
+        columns => {
+            cd_name => 'cd',
+        }
+    }, $artist, {
+        persist => 1,
+        columns => {
+            artist_name => 'artist'
+        }
+    });
 
 =head1 RESULTSET METHODS
 
@@ -783,19 +986,6 @@ conventional SQL string and list of bind values suitable for passing onto DBI
 
     my $first_record = $result->hash;
     for ($result->hashes) { ... }
-
-=head1 WHERE ART THOU JOINS?
-
-If you have used Dancer::Plugin::ORMesque with a project of any sophistication
-you will have undoubtedly noticed that the is no mechanism for specifying joins
-and this is intentional. Dancer::Plugin::ORMesque is an ORM, and object relational
-mapper and that is its purpose, it is not a SQL substitute. Joins are neccessary
-in SQL as they are the only means of gathering related data. Such is not the case
-with Perl code. The following is an example of gathering data using ORMesque...
-
-    my $user = dbi->user->read->first;
-    $user->{locations} = dbi->user_locations->read({ user => $user->id });
-    return $user;
 
 =head1 AUTHOR
 

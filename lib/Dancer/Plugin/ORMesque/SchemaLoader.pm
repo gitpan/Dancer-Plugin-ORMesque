@@ -2,7 +2,7 @@
 
 package Dancer::Plugin::ORMesque::SchemaLoader;
 BEGIN {
-  $Dancer::Plugin::ORMesque::SchemaLoader::VERSION = '1.103070';
+  $Dancer::Plugin::ORMesque::SchemaLoader::VERSION = '1.103160';
 }
 
 use strict;
@@ -20,12 +20,14 @@ sub mysql {
     my $self = shift;
     my $this = {};
     
+    $this->{schema}->{escape_string} = '`';
+    
     push @{$this->{schema}->{tables}}, $_->[0]
-      foreach @{$this->{dbh}->selectall_arrayref("SHOW TABLES")};
+      foreach @{$self->{dbh}->selectall_arrayref("SHOW TABLES")};
 
     # load table columns
     foreach my $table (@{$this->{schema}->{tables}}) {
-        for (@{$this->{dbh}->selectall_arrayref("SHOW COLUMNS FROM `$table`")}) {
+        for (@{$self->{dbh}->selectall_arrayref("SHOW COLUMNS FROM `$table`")}) {
             push @{$this->{schema}->{table}->{$table}->{columns}}, $_->[0];
 
             # find primary key
@@ -40,6 +42,8 @@ sub mysql {
 sub sqlite {
     my $self = shift;
     my $this = {};
+    
+    $this->{schema}->{escape_string} = '"';
     
     # load tables
     push @{$this->{schema}->{tables}}, $_->[2] foreach @{
@@ -64,6 +68,8 @@ sub sqlite {
 sub postgresql {
     my $self = shift;
     my $this = {};
+    
+    $this->{schema}->{escape_string} = "'";
     
     # load tables
     push @{$this->{schema}->{tables}}, $_->[0]
@@ -112,7 +118,7 @@ Dancer::Plugin::ORMesque::SchemaLoader - Dancer::Plugin::ORMesque Database Schem
 
 =head1 VERSION
 
-version 1.103070
+version 1.103160
 
 =head1 SYNOPSIS
 
