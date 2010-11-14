@@ -1,12 +1,10 @@
 #ABSTRACT: Light ORM for Dancer
 
 package Dancer::Plugin::ORMesque;
-BEGIN {
-  $Dancer::Plugin::ORMesque::VERSION = '1.103160';
-}
 
 use strict;
 use warnings;
+use Dancer::Plugin::ORMesque::DBIxSimpleHack; # mod'd dbix-simple to use S::A::L
 use base 'DBIx::Simple';
 
 use Dancer qw/:syntax/;
@@ -17,7 +15,11 @@ use Dancer::Plugin::ORMesque::SchemaLoader;
 use SQL::Abstract;
 use SQL::Interp;
 
+use Data::Page;
+
 our $Cache = undef;
+
+our $VERSION = 1.103180;# VERSION
 
 
 
@@ -124,23 +126,18 @@ register dbi => sub {
     return $self;
 };
 
-sub _safe_sql_names {
+sub _protect_sql {
     my $dbo = shift;
+    return @_ unless $dbo->{schema}->{escape_string};
+    my ($stag, $etag) = length($dbo->{schema}->{escape_string}) == 1   ?
+    ($dbo->{schema}->{escape_string}, $dbo->{schema}->{escape_string}) :
+    split //, $dbo->{schema}->{escape_string};
+    
     if ("HASH" eq ref $_[0]) {
-        return {
-            map {
-                    $dbo->{schema}->{escape_string} 
-                  . $_
-                  . $dbo->{schema}->{escape_string} => $_[0]->{$_}
-              } keys %{$_[0]}
-        };
+        return { map { ("$stag$_$etag" => $_[0]->{$_}) } keys %{$_[0]} };
     }
     else {
-        return map {
-                $dbo->{schema}->{escape_string} 
-              . $_
-              . $dbo->{schema}->{escape_string}
-        } @_;
+        return map { "$stag$_$etag" } @_;
     }
 }
 
@@ -240,7 +237,7 @@ sub count {
 sub create {
     my $dbo     = shift;
     my $input   = shift || {};
-    my @columns = $dbo->_safe_sql_names(keys %{$dbo->{current}});
+    my @columns = $dbo->_protect_sql(keys %{$dbo->{current}});
 
     die
       "Cannot create an entry in table ($dbo->{table}) without any input parameters."
@@ -257,7 +254,10 @@ sub create {
     }
 
     # insert
-    $dbo->{dbh}->insert($dbo->{table}, $input);
+    $dbo->{dbh}->insert(
+        $dbo->_protect_sql($dbo->{table}),
+        $dbo->_protect_sql($input)
+    );
 
     return $dbo;
 }
@@ -265,16 +265,25 @@ sub create {
 
 sub read {
     my $dbo     = shift;
+    
+    my $tables  = [];
+    
+        if ("ARRAY" eq ref $_[0]) {
+            $tables = shift;
+        }
+    
     my $where   = shift || {};
     my $order   = shift || [];
     my $table   = $dbo->{table};
     my @columns = ();
+    
+    my ($limit, $offset) = @_;
 
     if (defined $dbo->{select}) {
-        @columns = $dbo->_safe_sql_names(@{$dbo->{select}});
+        @columns = $dbo->_protect_sql(@{$dbo->{select}});
     }
     else {
-        @columns = $dbo->_safe_sql_names(keys %{$dbo->{current}});
+        @columns = $dbo->_protect_sql(keys %{$dbo->{current}});
     }
 
     # generate a where primary_key = ? clause
@@ -282,9 +291,53 @@ sub read {
         $where = {$dbo->key => $where};
     }
 
-    $dbo->{resultset} = sub {
-        return $dbo->{dbh}->select($table, \@columns, $where, $order);
-    };
+    if ($limit || $offset || $dbo->{ispaged}) {
+        
+        if ($dbo->{ispaged}) {
+            $dbo->{ispaged} = 0;
+            $dbo->pager->total_entries(
+                $dbo->{dbh}->select(
+                    $table,
+                    'COUNT(*)',
+                    $dbo->_protect_sql($where)
+                )->array->[0]
+            );
+            (
+                $offset,
+                $limit
+            )
+                =
+            (
+                $dbo->pager->skipped,
+                $dbo->pager->entries_per_page
+            );
+        }
+        
+        $dbo->{resultset} = sub {
+            return $dbo->{dbh}->select(
+                join(',', $dbo->_protect_sql($table),
+                    map { $dbo->_protect_sql($_) } @{$tables}
+                ),
+                \@columns,
+                $dbo->_protect_sql($where),
+                $order,
+                $limit,
+                $offset
+            );
+        };
+    }
+    else {
+        $dbo->{resultset} = sub {
+            return $dbo->{dbh}->select(
+                join(',', $dbo->_protect_sql($table),
+                    map { $dbo->_protect_sql($_) } @{$tables}
+                ),
+                \@columns,
+                $dbo->_protect_sql($where),
+                $order
+            );
+        };
+    }
 
 
     if (defined $dbo->{select}) {
@@ -321,7 +374,7 @@ sub update {
     my $input   = shift || {};
     my $where   = shift || {};
     my $table   = $dbo->{table};
-    my @columns = $dbo->_safe_sql_names(keys %{$dbo->{current}});
+    my @columns = $dbo->_protect_sql(keys %{$dbo->{current}});
 
     # process direct input
     die
@@ -333,7 +386,11 @@ sub update {
         $where = {$dbo->key => $where};
     }
 
-    $dbo->{dbh}->update($table, $input, $where) if keys %{$input};
+    $dbo->{dbh}->update(
+        $dbo->_protect_sql($table),
+        $dbo->_protect_sql($input),
+        $dbo->_protect_sql($where)
+    ) if keys %{$input};
 
     return $dbo;
 }
@@ -354,7 +411,10 @@ sub delete {
           . "use delete_all to purge the entire database table";
     }
 
-    $dbo->{dbh}->delete($table, $where);
+    $dbo->{dbh}->delete(
+        $dbo->_protect_sql($table),
+        $dbo->_protect_sql($where)
+    );
 
     return $dbo;
 }
@@ -364,7 +424,7 @@ sub delete_all {
     my $dbo   = shift;
     my $table = $dbo->{table};
 
-    $dbo->{dbh}->delete($table);
+    $dbo->{dbh}->delete($dbo->_protect_sql($table));
 
     return $dbo;
 }
@@ -435,6 +495,25 @@ sub join {
     }
 }
 
+
+sub page {
+    my $dbo = shift;
+    die 'The page method requires a page number and number of rows to return'
+        unless @_ == 2;
+    
+    $dbo->{ispaged} = 1;
+        
+    $dbo->pager->current_page($_[0]);
+    $dbo->pager->entries_per_page($_[1]);
+    
+    return $dbo;
+}
+
+
+sub pager {
+    my $dbo = shift;
+    $dbo->{pager} ||= Data::Page->new(@_);
+}
 
 
 
@@ -515,7 +594,7 @@ Dancer::Plugin::ORMesque - Light ORM for Dancer
 
 =head1 VERSION
 
-version 1.103160
+version 1.103180
 
 =head1 SYNOPSIS
 
@@ -727,12 +806,17 @@ a DSN directly in your configuration file you need to also specify a driver dire
         'column_a' => 'value_a',
     });
     
-    or
+    .. or read by primary key ..
     
     dbi->table->read(1);
     
-    # return arrayref from read (select) method
-    my $records = dbi->table->read->collection
+    .. or read and limit the resultset ..
+    
+    dbi->table->read({ 'column_a' => 'value_a' }, ['orderby_column_a'], $limit, $offset);
+    
+    .. or return a paged resultset ..
+    
+    dbi->table->page(1, 25)->read;
 
 =head2 update
 
@@ -843,6 +927,26 @@ to include as well as supply an alias if desired. The following is an example of
             artist_name => 'artist'
         }
     });
+
+=head2 page
+
+    The page method creates a paged resultset and instructs the read() method to
+    only return the resultset of the desired page.
+    
+    my $page = 1; # page of data to be returned
+    my $rows = 100; # number of rows to return
+    
+    dbi->table->page($page, $rows)->read;
+
+=head2 pager
+
+    The pager method provides access to the Data::Page object used in pagination.
+    Please see L<Data::Page> for more details...
+    
+    $pager = dbi->table->pager;
+    
+    $pager->first_page;
+    $pager->last_page;
 
 =head1 RESULTSET METHODS
 

@@ -23,10 +23,12 @@ my %WriteMakefileArgs = (
     'DBIx::Simple' => '0',
     'Dancer' => '0',
     'Dancer::Plugin::Database' => '0',
+    'Data::Page' => '0',
     'SQL::Abstract' => '0',
+    'SQL::Abstract::Limit' => '0',
     'SQL::Interp' => '0'
   },
-  'VERSION' => '1.103160',
+  'VERSION' => '1.103180',
   'test' => {
     'TESTS' => 't/*.t'
   }

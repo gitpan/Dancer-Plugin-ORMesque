@@ -81,5 +81,13 @@ my $resultset = {};
 
 eval{ $resultset = $cd->join() };
 ok $@, 'join requires two or more ORMesque objects';
+
+#$db->{dbh}->{dbh}->trace(1);
+#$cd->read;
+#warn to_dumper [$cd->list];
+
+#$resultset = $cd->join({ columns => { cd_name => 'cd' } }, $artist, { persist => 1, columns => { artist_name => 'artist' } });
+#warn to_dumper $resultset;
+
 #$resultset = $cd->join({ columns => { cd_name => 'cd' } }, $artist, { persist => 1, columns => { artist_name => 'artist' } });
 #warn to_dumper $resultset;

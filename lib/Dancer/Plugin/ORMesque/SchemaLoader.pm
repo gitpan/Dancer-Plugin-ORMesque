@@ -1,14 +1,13 @@
 #ABSTRACT: Dancer::Plugin::ORMesque Database Schema Loader
 
 package Dancer::Plugin::ORMesque::SchemaLoader;
-BEGIN {
-  $Dancer::Plugin::ORMesque::SchemaLoader::VERSION = '1.103160';
-}
 
 use strict;
 use warnings;
 
 use DBI;
+
+our $VERSION = 1.103180;# VERSION
 
 
 sub new {
@@ -118,7 +117,7 @@ Dancer::Plugin::ORMesque::SchemaLoader - Dancer::Plugin::ORMesque Database Schem
 
 =head1 VERSION
 
-version 1.103160
+version 1.103180
 
 =head1 SYNOPSIS
 
