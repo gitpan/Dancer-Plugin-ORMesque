@@ -1,22 +1,19 @@
 use strict;
 use warnings;
-use Test::More tests => 15, import => ['!pass'];
+use Test::More tests => 14, import => ['!pass'];
 use Test::Exception;
 use FindBin;
 
 BEGIN {
-    use lib "$FindBin::Bin/lib";
     use_ok 'Dancer', ':syntax';
-    use_ok 'Dancer::Plugin::Database';
     use_ok 'Dancer::Plugin::ORMesque';
 }
 
-set session     => "YAML";
-set session_dir => $FindBin::Bin . "/sessions";
 set plugins     => {
-        'Database' => {
-                driver   => 'SQLite',
-                database => "$FindBin::Bin/001_database.db"
+        'ORMesque' => {
+            foo => {
+                dsn => "dbi:SQLite:" . $FindBin::Bin . "/001_database.db"
+            }
         }
 };
 
@@ -27,7 +24,7 @@ if ($@) {
 
 diag 'testing objects';
 
-my $db = dbi;
+my $db = db;
 ok $db, 'database object received';
 ok $db->cd, 'cd table object exists';
 ok $db->artist, 'artist table object exists';
@@ -61,7 +58,8 @@ my  (
         $db->playlist_track
     );
 
-$artist->create({ name => 'Micheal Jackson' })->return;
+$artist->create({ name => 'Micheal Jackson' });
+$artist->return;
 $cd->create({ artist => $artist->id(), name => $_ })
 
     for (

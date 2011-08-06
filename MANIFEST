@@ -3,11 +3,8 @@ MANIFEST
 META.yml
 Makefile.PL
 README
-TODO
 dist.ini
 lib/Dancer/Plugin/ORMesque.pm
-lib/Dancer/Plugin/ORMesque/DBIxSimpleHack.pm
-lib/Dancer/Plugin/ORMesque/SchemaLoader.pm
 t/000_database.db
 t/000_database.db.bak
 t/001_database.db
@@ -18,4 +15,4 @@ t/003_referential.t
 t/004_joindata.t
 t/005_hasmod_dbix_simple.t
 t/006_pagination.t
-t/lib/Dancer/Plugin/Database.pm
+t/sessions/placeholder

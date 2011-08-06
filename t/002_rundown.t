@@ -1,22 +1,19 @@
 use strict;
 use warnings;
-use Test::More tests => 58, import => ['!pass'];
+use Test::More tests => 57, import => ['!pass'];
 use Test::Exception;
 use FindBin;
 
 BEGIN {
-    use lib "$FindBin::Bin/lib";
     use_ok 'Dancer', ':syntax';
-    use_ok 'Dancer::Plugin::Database';
     use_ok 'Dancer::Plugin::ORMesque';
 }
 
-set session     => "YAML";
-set session_dir => $FindBin::Bin . "/sessions";
 set plugins     => {
-        'Database' => {
-                driver   => 'SQLite',
-                database => "$FindBin::Bin/000_database.db"
+        'ORMesque' => {
+            foo => {
+                dsn => "dbi:SQLite:" . $FindBin::Bin . "/000_database.db"
+            }
         }
 };
 
@@ -27,7 +24,7 @@ if ($@) {
 
 diag 'basic operations';
 
-my $db = dbi;
+my $db = db;
 my $user = $db->user;
 ok $db, 'database connection established';
 ok $user, 'user table object exists';

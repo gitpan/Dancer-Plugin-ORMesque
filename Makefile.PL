@@ -4,7 +4,7 @@ use warnings;
 
 
 
-use ExtUtils::MakeMaker 6.31;
+use ExtUtils::MakeMaker 6.30;
 
 
 
@@ -13,22 +13,17 @@ my %WriteMakefileArgs = (
   'AUTHOR' => 'Al Newkirk <awncorp@cpan.org>',
   'BUILD_REQUIRES' => {},
   'CONFIGURE_REQUIRES' => {
-    'ExtUtils::MakeMaker' => '6.31'
+    'ExtUtils::MakeMaker' => '6.30'
   },
   'DISTNAME' => 'Dancer-Plugin-ORMesque',
   'EXE_FILES' => [],
   'LICENSE' => 'perl',
   'NAME' => 'Dancer::Plugin::ORMesque',
   'PREREQ_PM' => {
-    'DBIx::Simple' => '0',
     'Dancer' => '0',
-    'Dancer::Plugin::Database' => '0',
-    'Data::Page' => '0',
-    'SQL::Abstract' => '0',
-    'SQL::Abstract::Limit' => '0',
-    'SQL::Interp' => '0'
+    'ORMesque' => '0'
   },
-  'VERSION' => '1.103180',
+  'VERSION' => '1.112180',
   'test' => {
     'TESTS' => 't/*.t'
   }

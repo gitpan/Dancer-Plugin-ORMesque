@@ -1,22 +1,19 @@
 use strict;
 use warnings;
-use Test::More tests => 8, import => ['!pass'];
+use Test::More tests => 7, import => ['!pass'];
 use Test::Exception;
 use FindBin;
 
 BEGIN {
-    use lib "$FindBin::Bin/lib";
     use_ok 'Dancer', ':syntax';
-    use_ok 'Dancer::Plugin::Database';
     use_ok 'Dancer::Plugin::ORMesque';
 }
 
-set session     => "YAML";
-set session_dir => $FindBin::Bin . "/sessions";
 set plugins     => {
-        'Database' => {
-                driver   => 'SQLite',
-                database => "$FindBin::Bin/001_database.db"
+        'ORMesque' => {
+            foo => {
+                dsn => "dbi:SQLite:" . $FindBin::Bin . "/001_database.db"
+            }
         }
 };
 
@@ -25,7 +22,7 @@ if ($@) {
     plan skip_all => 'DBD::SQLite is required to run these tests';
 }
 
-my $cd = dbi->cd;
+my $cd = db->cd;
 
 ok "Data::Page" eq ref($cd->pager), 'pager set';
 ok $cd->read({},[],2,1), 'limit no fail';
