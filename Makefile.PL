@@ -9,23 +9,23 @@ use ExtUtils::MakeMaker 6.30;
 
 
 my %WriteMakefileArgs = (
-  'ABSTRACT' => 'Light ORM for Dancer',
-  'AUTHOR' => 'Al Newkirk <awncorp@cpan.org>',
-  'BUILD_REQUIRES' => {},
-  'CONFIGURE_REQUIRES' => {
-    'ExtUtils::MakeMaker' => '6.30'
+  "ABSTRACT" => "Light ORM for Dancer",
+  "AUTHOR" => "Al Newkirk <awncorp\@cpan.org>",
+  "BUILD_REQUIRES" => {},
+  "CONFIGURE_REQUIRES" => {
+    "ExtUtils::MakeMaker" => "6.30"
   },
-  'DISTNAME' => 'Dancer-Plugin-ORMesque',
-  'EXE_FILES' => [],
-  'LICENSE' => 'perl',
-  'NAME' => 'Dancer::Plugin::ORMesque',
-  'PREREQ_PM' => {
-    'Dancer' => '0',
-    'ORMesque' => '0'
+  "DISTNAME" => "Dancer-Plugin-ORMesque",
+  "EXE_FILES" => [],
+  "LICENSE" => "perl",
+  "NAME" => "Dancer::Plugin::ORMesque",
+  "PREREQ_PM" => {
+    "Dancer" => 0,
+    "ORMesque" => 0
   },
-  'VERSION' => '1.112180',
-  'test' => {
-    'TESTS' => 't/*.t'
+  "VERSION" => "1.113100",
+  "test" => {
+    "TESTS" => "t/*.t"
   }
 );
 

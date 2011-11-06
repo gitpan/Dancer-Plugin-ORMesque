@@ -9,7 +9,7 @@ use Dancer qw/:syntax/;
 use Dancer::Plugin;
 use ORMesque;
 
-our $VERSION = '1.112180'; # VERSION
+our $VERSION = '1.113100'; # VERSION
 
 
 my $schemas = {};
@@ -60,7 +60,7 @@ Dancer::Plugin::ORMesque - Light ORM for Dancer
 
 =head1 VERSION
 
-version 1.112180
+version 1.113100
 
 =head1 SYNOPSIS
 

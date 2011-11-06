@@ -2,7 +2,7 @@ NAME
     Dancer::Plugin::ORMesque - Light ORM for Dancer
 
 VERSION
-    version 1.112180
+    version 1.113100
 
 SYNOPSIS
     Dancer::Plugin::ORMesque is a lightweight ORM for Dancer supporting
